@@ -33,7 +33,7 @@ class PostgresConnection:
 
     def executemany(self, query: str, parameters: list[tuple[Any, ...]]) -> Any:
         cursor = self.connection.cursor()
-        cursor.executemany(postgres_query(query), parameters, prepare=False)
+        cursor.executemany(postgres_query(query), parameters)
         return cursor
 
     def commit(self) -> None:
