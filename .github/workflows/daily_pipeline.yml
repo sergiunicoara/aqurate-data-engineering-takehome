@@ -1,0 +1,23 @@
+name: Daily Aqurate pipeline
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 05:15 Romania summer time / 02:15 UTC; adjust with DST in production if a fixed local SLA is required.
+    - cron: '15 2 * * *'
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - run: python run_pipeline.py
+        env:
+          DATABASE_PATH: data/aqurate.db
+          ORDERS_SOURCE_URL: ${{ secrets.ORDERS_SOURCE_URL }}
+          ORDERS_SOURCE_API_KEY: ${{ secrets.ORDERS_SOURCE_API_KEY }}
+          FX_API_URL: https://api.frankfurter.dev/v1
