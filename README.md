@@ -4,7 +4,7 @@
 
 A small, rerunnable Python + SQL pipeline that ingests the supplied Supabase order-line feed, persists a faithful raw representation, materialises cleaned order lines, retrieves FX observations from Frankfurter, and refreshes two EUR reporting tables daily.
 
-SQLite is the no-setup local database. Set `DATABASE_URL` to use PostgreSQL (including Supabase) instead; the scheduled GitHub Actions run uses this persistent mode so each daily refresh is retained and queryable.
+SQLite is the no-setup local database. Set `DATABASE_URL` to use PostgreSQL (including Neon or Supabase) instead; the scheduled GitHub Actions run uses this persistent mode so each daily refresh is retained and queryable.
 
 ```mermaid
 flowchart LR
@@ -50,11 +50,11 @@ python run_pipeline.py --data-quality-report
 
 `ORDERS_SOURCE_URL` and `ORDERS_SOURCE_API_KEY` must be supplied through environment variables or a local `.env` file. Neither is committed. `DATABASE_PATH` defaults to `data/aqurate.db`; `DATABASE_URL` is optional and, when supplied, selects PostgreSQL instead of SQLite. `FX_API_URL` defaults to Frankfurter; `HTTP_TIMEOUT_SECONDS` defaults to 30.
 
-### Persistent Supabase database
+### Persistent Neon database
 
-For the scheduled workflow, create a Supabase project and copy a PostgreSQL connection string from its **Connect** panel (the pooled connection string is suitable for GitHub Actions). Add it to the repository's Actions secrets as `SUPABASE_DATABASE_URL`, alongside the existing `ORDERS_SOURCE_URL` and `ORDERS_SOURCE_API_KEY` secrets. Do not commit or publish this connection string.
+For the scheduled workflow, create a hosted PostgreSQL database such as Neon and copy its connection string. Add it to the repository's Actions secrets as `SUPABASE_DATABASE_URL` (the secret name is retained for workflow compatibility), alongside the existing `ORDERS_SOURCE_URL` and `ORDERS_SOURCE_API_KEY` secrets. Do not commit or publish this connection string.
 
-The first successful scheduled or manually dispatched run creates the tables automatically. Subsequent runs retain `orders_raw`, `fx_rates`, the two output tables, and `pipeline_runs`, so the FX-driven refresh is inspectable over time in Supabase's SQL editor:
+The first successful scheduled or manually dispatched run creates the tables automatically. Subsequent runs retain `orders_raw`, `fx_rates`, the two output tables, and `pipeline_runs`, so the FX-driven refresh is inspectable over time in the Neon SQL Editor (or the provider's equivalent):
 
 ```sql
 SELECT * FROM customer_spend_eur ORDER BY total_spend_eur DESC;

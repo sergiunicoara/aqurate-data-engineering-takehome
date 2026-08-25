@@ -10,7 +10,7 @@ jobs:
   refresh:
     runs-on: ubuntu-latest
     env:
-      # This is a pooled PostgreSQL URL from the Supabase project. It is never committed.
+      # This is the hosted PostgreSQL URL from Neon. It is never committed.
       DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
       REQUIRE_DATABASE_URL: "true"
       ORDERS_SOURCE_URL: ${{ secrets.ORDERS_SOURCE_URL }}
