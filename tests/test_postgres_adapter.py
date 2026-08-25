@@ -9,7 +9,7 @@ class FakeCursor:
     def __init__(self) -> None:
         self.executed: tuple[str, list[tuple[Any, ...]]] | None = None
 
-    def executemany(self, query: str, parameters: list[tuple[Any, ...]]) -> None:
+    def executemany(self, query: str, parameters: list[tuple[Any, ...]], *, prepare: bool) -> None:
         self.executed = (query, parameters)
 
 

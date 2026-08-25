@@ -14,6 +14,7 @@ from .config import Settings
 from .db import DatabaseConnection
 
 LOGGER = logging.getLogger(__name__)
+BATCH_SIZE = 1000
 REQUIRED_COLUMNS = frozenset({
     "order_id", "customer_id", "customer_email", "order_ts", "status", "channel", "sku",
     "product_name", "category", "qty", "unit_price", "currency", "country", "fx_reference_date",
@@ -68,23 +69,25 @@ def ingest_orders(connection: DatabaseConnection, rows: Iterable[dict[str, Any]]
     rows = list(rows)
     now = utc_now()
     inserted = 0
+    records: list[tuple[Any, ...]] = []
     for row in rows:
         missing = REQUIRED_COLUMNS.difference(row)
         if missing:
             raise ValueError(f"Orders source row missing required columns: {sorted(missing)}")
         source_hash = canonical_hash(row)
-        cursor = connection.execute(
-            """INSERT INTO orders_raw (
+        records.append((source_hash, json.dumps(row, sort_keys=True, ensure_ascii=False), *[as_raw_text(row[key]) for key in (
+            "order_id", "customer_id", "customer_email", "order_ts", "status", "channel", "sku",
+            "product_name", "category", "qty", "unit_price", "currency", "country", "fx_reference_date",
+        )], now))
+
+    statement = """INSERT INTO orders_raw (
                     source_hash, payload_json, order_id_raw, customer_id_raw, customer_email_raw,
                     order_ts_raw, status_raw, channel_raw, sku_raw, product_name_raw, category_raw,
                     qty_raw, unit_price_raw, currency_raw, country_raw, fx_reference_date_raw, source_loaded_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(source_hash) DO NOTHING""",
-            (source_hash, json.dumps(row, sort_keys=True, ensure_ascii=False), *[as_raw_text(row[key]) for key in (
-                "order_id", "customer_id", "customer_email", "order_ts", "status", "channel", "sku",
-                "product_name", "category", "qty", "unit_price", "currency", "country", "fx_reference_date",
-            )], now),
-        )
+                ON CONFLICT(source_hash) DO NOTHING"""
+    for start in range(0, len(records), BATCH_SIZE):
+        cursor = connection.executemany(statement, records[start:start + BATCH_SIZE])
         inserted += cursor.rowcount
     LOGGER.info("raw ingestion complete", extra={"source_rows": len(rows), "new_rows": inserted})
     return len(rows), inserted
