@@ -8,6 +8,5 @@ WITH country_totals AS (
     GROUP BY country
     HAVING SUM(amount_eur) > 40000
 )
-SELECT RANK() OVER (ORDER BY total_revenue_eur DESC), country, total_revenue_eur, order_count, CURRENT_TIMESTAMP
+SELECT RANK() OVER (ORDER BY total_revenue_eur DESC), country, total_revenue_eur, order_count, CAST(CURRENT_TIMESTAMP AS TEXT)
 FROM country_totals;
-

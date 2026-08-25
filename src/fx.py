@@ -2,26 +2,31 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 import logging
-import sqlite3
 
 import requests
 
 from .config import Settings
+from .db import DatabaseConnection
 from .ingest_orders import http_session, utc_now
 
 LOGGER = logging.getLogger(__name__)
 
 
-def required_fx_currencies(connection: sqlite3.Connection) -> list[str]:
-    return [row[0] for row in connection.execute("SELECT DISTINCT currency FROM orders_clean WHERE currency <> 'EUR' ORDER BY currency")]
+def required_fx_currencies(connection: DatabaseConnection) -> list[str]:
+    return [row["currency"] for row in connection.execute("SELECT DISTINCT currency FROM orders_clean WHERE currency <> 'EUR' ORDER BY currency")]
 
 
-def required_fx_date_bounds(connection: sqlite3.Connection) -> tuple[date, date] | None:
-    row = connection.execute("SELECT MIN(fx_reference_date), MAX(fx_reference_date) FROM orders_clean WHERE currency <> 'EUR'").fetchone()
-    return None if row[0] is None else (date.fromisoformat(row[0]), date.fromisoformat(row[1]))
+def required_fx_date_bounds(connection: DatabaseConnection) -> tuple[date, date] | None:
+    row = connection.execute(
+        "SELECT MIN(fx_reference_date) AS earliest_reference, MAX(fx_reference_date) AS latest_reference "
+        "FROM orders_clean WHERE currency <> 'EUR'"
+    ).fetchone()
+    return None if row["earliest_reference"] is None else (
+        date.fromisoformat(row["earliest_reference"]), date.fromisoformat(row["latest_reference"])
+    )
 
 
-def fetch_and_upsert_fx(connection: sqlite3.Connection, settings: Settings, session: requests.Session | None = None, today: date | None = None) -> int:
+def fetch_and_upsert_fx(connection: DatabaseConnection, settings: Settings, session: requests.Session | None = None, today: date | None = None) -> int:
     bounds = required_fx_date_bounds(connection)
     currencies = required_fx_currencies(connection)
     if not bounds or not currencies:
@@ -34,8 +39,8 @@ def fetch_and_upsert_fx(connection: sqlite3.Connection, settings: Settings, sess
     added = 0
     for currency in currencies:
         cached = connection.execute(
-            "SELECT MAX(rate_date) FROM fx_rates WHERE base_currency = ? AND quote_currency = 'EUR'", (currency,)
-        ).fetchone()[0]
+            "SELECT MAX(rate_date) AS latest_rate_date FROM fx_rates WHERE base_currency = ? AND quote_currency = 'EUR'", (currency,)
+        ).fetchone()["latest_rate_date"]
         # Re-request the last observed date so a previously unavailable current-date rate can appear.
         start = earliest_reference if cached is None else max(earliest_reference, date.fromisoformat(cached))
         if start > available_through:

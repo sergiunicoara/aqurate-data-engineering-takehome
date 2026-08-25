@@ -4,9 +4,9 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 import json
-import sqlite3
 from typing import Any
 
+from .db import DatabaseConnection
 from .ingest_orders import utc_now
 
 CURRENCY_ALIASES = {"EURO": "EUR", "€": "EUR", "LEI": "RON"}
@@ -139,7 +139,7 @@ def clean_row(source_hash: str, row: dict[str, Any]) -> CleanedOrder:
     )
 
 
-def rebuild_clean_orders(connection: sqlite3.Connection) -> tuple[int, int]:
+def rebuild_clean_orders(connection: DatabaseConnection) -> tuple[int, int]:
     raw_rows = connection.execute("SELECT source_hash, payload_json FROM orders_raw ORDER BY source_hash").fetchall()
     now = utc_now()
     clean: list[CleanedOrder] = []

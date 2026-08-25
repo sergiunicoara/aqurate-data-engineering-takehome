@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import logging
-import sqlite3
 from typing import Any, Iterable
 
 import requests
@@ -12,6 +11,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from .config import Settings
+from .db import DatabaseConnection
 
 LOGGER = logging.getLogger(__name__)
 REQUIRED_COLUMNS = frozenset({
@@ -64,7 +64,7 @@ def as_raw_text(value: Any) -> str | None:
     return None if value is None else str(value)
 
 
-def ingest_orders(connection: sqlite3.Connection, rows: Iterable[dict[str, Any]]) -> tuple[int, int]:
+def ingest_orders(connection: DatabaseConnection, rows: Iterable[dict[str, Any]]) -> tuple[int, int]:
     rows = list(rows)
     now = utc_now()
     inserted = 0
@@ -88,4 +88,3 @@ def ingest_orders(connection: sqlite3.Connection, rows: Iterable[dict[str, Any]]
         inserted += cursor.rowcount
     LOGGER.info("raw ingestion complete", extra={"source_rows": len(rows), "new_rows": inserted})
     return len(rows), inserted
-

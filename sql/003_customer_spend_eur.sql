@@ -10,7 +10,7 @@ SELECT
     CASE WHEN c.currency = 'EUR' THEN c.fx_reference_date ELSE fx.rate_date END,
     CASE WHEN c.currency = 'EUR' THEN 1.0 ELSE fx.rate END,
     CASE WHEN c.currency = 'EUR' THEN c.line_amount ELSE c.line_amount * fx.rate END,
-    CURRENT_TIMESTAMP
+    CAST(CURRENT_TIMESTAMP AS TEXT)
 FROM orders_clean c
 LEFT JOIN fx_rates fx
   ON fx.base_currency = c.currency
@@ -26,8 +26,7 @@ LEFT JOIN fx_rates fx
 DELETE FROM customer_spend_eur;
 
 INSERT INTO customer_spend_eur (customer_id, total_spend_eur, order_count, last_refreshed_at)
-SELECT customer_id, ROUND(SUM(amount_eur), 2), COUNT(*), CURRENT_TIMESTAMP
+SELECT customer_id, ROUND(SUM(amount_eur), 2), COUNT(*), CAST(CURRENT_TIMESTAMP AS TEXT)
 FROM order_values_eur
 WHERE customer_id IS NOT NULL AND amount_eur IS NOT NULL
 GROUP BY customer_id;
-

@@ -4,7 +4,7 @@
 
 A small, rerunnable Python + SQL pipeline that ingests the supplied Supabase order-line feed, persists a faithful raw representation, materialises cleaned order lines, retrieves FX observations from Frankfurter, and refreshes two EUR reporting tables daily.
 
-SQLite is the no-setup local database. Database access is isolated in `src/db.py`, so replacing it with a PostgreSQL connection for a deployed environment does not affect the source, cleaning, FX, or SQL business rules.
+SQLite is the no-setup local database. Set `DATABASE_URL` to use PostgreSQL (including Supabase) instead; the scheduled GitHub Actions run uses this persistent mode so each daily refresh is retained and queryable.
 
 ```mermaid
 flowchart LR
@@ -48,7 +48,21 @@ python run_pipeline.py --data-quality-report
 
 ## Configuration
 
-`ORDERS_SOURCE_URL` and `ORDERS_SOURCE_API_KEY` must be supplied through environment variables or a local `.env` file. Neither is committed. `DATABASE_PATH` defaults to `data/aqurate.db`; `FX_API_URL` defaults to Frankfurter; `HTTP_TIMEOUT_SECONDS` defaults to 30.
+`ORDERS_SOURCE_URL` and `ORDERS_SOURCE_API_KEY` must be supplied through environment variables or a local `.env` file. Neither is committed. `DATABASE_PATH` defaults to `data/aqurate.db`; `DATABASE_URL` is optional and, when supplied, selects PostgreSQL instead of SQLite. `FX_API_URL` defaults to Frankfurter; `HTTP_TIMEOUT_SECONDS` defaults to 30.
+
+### Persistent Supabase database
+
+For the scheduled workflow, create a Supabase project and copy a PostgreSQL connection string from its **Connect** panel (the pooled connection string is suitable for GitHub Actions). Add it to the repository's Actions secrets as `SUPABASE_DATABASE_URL`, alongside the existing `ORDERS_SOURCE_URL` and `ORDERS_SOURCE_API_KEY` secrets. Do not commit or publish this connection string.
+
+The first successful scheduled or manually dispatched run creates the tables automatically. Subsequent runs retain `orders_raw`, `fx_rates`, the two output tables, and `pipeline_runs`, so the FX-driven refresh is inspectable over time in Supabase's SQL editor:
+
+```sql
+SELECT * FROM customer_spend_eur ORDER BY total_spend_eur DESC;
+SELECT * FROM country_category_revenue ORDER BY revenue_rank;
+SELECT * FROM pipeline_runs ORDER BY started_at DESC;
+```
+
+Local development remains SQLite-only unless `DATABASE_URL` is set. This keeps `pytest` and a first run no-setup while making the deployed automation persistent.
 
 ## Pipeline and Idempotency
 
@@ -76,7 +90,7 @@ Rates are stored as `1 source currency = X EUR`. EUR lines use `1.0` without an 
 
 The analytical SQL chooses `MAX(rate_date) <= fx_reference_date`. This handles weekends, holidays, and dates whose rates have not been published. For future reference dates it therefore uses the latest actually published observation available at runtime—never a future observation—so values may update on a later daily run without look-ahead bias. Lines lacking a usable rate remain visible in `order_values_eur` with a null EUR value and are logged/audited rather than fabricated.
 
-`orders_clean.unit_price`, line values, and FX rates use SQLite `NUMERIC` declarations. SQLite has dynamic numeric type affinity; a production PostgreSQL deployment should use `NUMERIC(p,s)` and retain full precision until the final `ROUND(..., 2)` used in published outputs.
+`orders_clean.unit_price`, line values, and FX rates use `NUMERIC` declarations. SQLite has dynamic numeric type affinity; PostgreSQL preserves these values as exact numeric values until the final `ROUND(..., 2)` used in published outputs.
 
 ## Outputs
 
@@ -84,9 +98,7 @@ The analytical SQL chooses `MAX(rate_date) <= fx_reference_date`. This handles w
 
 ## Daily Automation
 
-`.github/workflows/daily_pipeline.yml` supports manual dispatch and a 02:15 UTC daily schedule (05:15 Romania summer time). It installs dependencies and runs `python run_pipeline.py`, failing visibly on any source, database, validation, or FX error. Configure the two source settings as GitHub Actions secrets.
-
-For a deployed implementation, point the same pipeline at a persistent PostgreSQL/Supabase database; GitHub-hosted runners have ephemeral disks, so the bundled SQLite path is intentionally a reviewer-friendly local mode rather than a production data store.
+`.github/workflows/daily_pipeline.yml` supports manual dispatch and a 02:15 UTC daily schedule (05:15 Romania summer time). It installs dependencies and runs `python run_pipeline.py`, failing visibly on any source, database, validation, or FX error. It uses the `SUPABASE_DATABASE_URL` Actions secret as `DATABASE_URL` and sets `REQUIRE_DATABASE_URL=true`, so a missing secret cannot silently fall back to the runner's ephemeral SQLite disk.
 
 ## Monitoring and Silent-Failure Detection
 
@@ -102,7 +114,7 @@ The offline test suite covers whitespace/case normalisation, invalid numerical f
 
 An AI coding assistant was used for scaffolding, code review, SQL/query suggestions, test-case generation, and documentation editing. All retained output was checked against the live source, API response shape, SQL semantics, monetary conversion rules, and automated tests.
 
-Examples changed or rejected during review: exact-date-only FX joins were changed to latest-prior-date matching; binary float was not used for Python monetary parsing (`Decimal` is used); blind `order_id` deduplication was rejected because an order has multiple lines; future dates were not classified as invalid and are protected from look-ahead; and a production database abstraction was kept deliberately small rather than adding Docker, Airflow, or orchestration infrastructure.
+Examples changed or rejected during review: exact-date-only FX joins were changed to latest-prior-date matching; binary float was not used for Python monetary parsing (`Decimal` is used); blind `order_id` deduplication was rejected because an order has multiple lines; future dates were not classified as invalid and are protected from look-ahead; and the database layer was kept deliberately small while supporting both local SQLite and the persistent PostgreSQL target used by automation.
 
 ## Repository Structure
 

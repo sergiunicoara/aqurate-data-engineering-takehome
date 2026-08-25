@@ -9,6 +9,13 @@ on:
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    env:
+      # This is a pooled PostgreSQL URL from the Supabase project. It is never committed.
+      DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+      REQUIRE_DATABASE_URL: "true"
+      ORDERS_SOURCE_URL: ${{ secrets.ORDERS_SOURCE_URL }}
+      ORDERS_SOURCE_API_KEY: ${{ secrets.ORDERS_SOURCE_API_KEY }}
+      FX_API_URL: https://api.frankfurter.dev/v1
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -16,8 +23,3 @@ jobs:
           python-version: '3.11'
       - run: pip install -r requirements.txt
       - run: python run_pipeline.py
-        env:
-          DATABASE_PATH: data/aqurate.db
-          ORDERS_SOURCE_URL: ${{ secrets.ORDERS_SOURCE_URL }}
-          ORDERS_SOURCE_API_KEY: ${{ secrets.ORDERS_SOURCE_API_KEY }}
-          FX_API_URL: https://api.frankfurter.dev/v1

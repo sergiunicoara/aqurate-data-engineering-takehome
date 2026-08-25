@@ -4,7 +4,6 @@ import argparse
 from datetime import datetime, timezone
 import json
 import logging
-import sqlite3
 import sys
 import time
 import uuid
@@ -28,7 +27,8 @@ def run(settings: Settings, report_only: bool = False) -> dict[str, int]:
     if report_only:
         print(json.dumps(build_report(rows), indent=2))
         return {"raw_rows": len(rows)}
-    connection = connect(settings.database_path)
+    settings.validate_database_configuration()
+    connection = connect(settings.database_path, settings.database_url)
     initialise(connection)
     run_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -76,4 +76,3 @@ def main() -> int:
         logging.getLogger(__name__).error("Pipeline failed: %s", error)
         return 1
     return 0
-
